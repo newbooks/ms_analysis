@@ -1,4 +1,13 @@
 #!/usr/bin/env python
+# Charge microstate analysis tool sets
+# This library offers the following functions
+# * Read microstate file and convert to a list of charge microstates
+# * Group microstates by residue charge state
+# * Group/rank microstates by population
+# * Bin microstates
+# * Find microstates within an energy band
+# * Distance score of two microstate groups
+
 import math
 import matplotlib.pyplot as plt
 import numpy as np
@@ -6,7 +15,7 @@ import numpy as np
 
 ph2Kcal = 1.364
 Kcal2kT = 1.688
-import shelve
+
 
 class Microstate:
     def __init__(self, state, E, count):
