@@ -11,7 +11,7 @@
 import math
 import matplotlib.pyplot as plt
 import numpy as np
-
+import sys
 
 ph2Kcal = 1.364
 Kcal2kT = 1.688
@@ -19,8 +19,9 @@ Kcal2kT = 1.688
 
 class Microstate:
     def __init__(self, state, E, count):
-        self.state = state
-        self.E = E
+        self.state = state   # a list of charges on free residues
+        self.E_sum = 0
+        self.E = 0           # Average energy
         self.count = count
 
 
@@ -29,7 +30,6 @@ class Conformer:
         self.iconf = 0
         self.confid = ""
         self.resid = ""
-        self.oocc = 0.0
         self.occ = 0.0
         self.crg = 0.0
 
@@ -40,57 +40,122 @@ class Conformer:
         self.resid = self.confid[:3]+self.confid[5:11]
         self.crg = float(fields[4])
 
+class Residue:
+    def __init__(self):
+        self.resid = ""
+        self.conformers = []
 
-def readms(fname):
-    current_state = []     # An array of conformer index number as a microstate
-    microstates = []       # An array of Microstate objects (conformer index numbers, energy, and count).
-    free_res = []          # A list if lists (residues) which contain conformer index numbers
-    iconf2res = {}         # A dictionary for looking up from conformer index to residue index
+class MC:
+    def __init__(self):
+        self.T = 298.15
+        self.pH = 7.00
+        self.Eh = 0.00
+        self.method = ""
+        self.counts = 0
+        self.E = 0.0
+        self.conformers = []
+        self.ifixed_conformers = []
+        self.residues = []
+        self.ifree_residues = []
+        self.ires_by_confname = {}
+        self.ires_by_iconf = {}
+        self.ires_by_resname = {}
+        self.microstates = []
 
-    lines = open(fname).readlines()
+    def readms(self, fname):
+        found_nres = False
+        found_mc = False
+        newmc = False
 
-    found_nres = False
-    found_mc = False
-    newmc = False
-    for line in lines:
-        if line.find("#N_FREE residues:") == 0:
-            found_nres = True
-            continue
-        elif found_nres:
-            fields = line.split(":")
-            fields = fields[1].split(";")
-            for f in fields:
-                if f.strip():
-                    confs = f.split()
-                    free_res.append([int(c) for c in confs])
-            for i_res in range(len(free_res)):
-                for iconf in free_res[i_res]:
-                    iconf2res[iconf] = i_res
-            found_nres = False
-        elif line.find("MC:") == 0:   # ms starts
-            found_mc = True
-            newmc = True
-            continue
-        elif newmc:
-            f1, f2 = line.split(":")
-            current_state = [int(c) for c in f2.split()]
-            newmc = False
-            continue
-        elif found_mc:
+        f = open(fname)
+
+        # read the header part
+        fields = []
+        n_lines = 0
+        while len(fields) != 3 and n_lines < 10:
+            line = f.readline()
+            line = line.split("#")[0]  #remove comment
             fields = line.split(",")
-            if len(fields) >= 3:
-                state_e = float(fields[0])
-                count = int(fields[1])
-                flipped = [int(c) for c in fields[2].split()]
+            n_lines += 1
+        if n_lines >= 10:
+            print("Expect MC condition line like \"T:298.15,pH:5.00,eH:0.00\" in the first 10 lines")
+            sys.exit()
 
-                for ic in flipped:
-                    ir = iconf2res[ic]
-                    current_state[ir] = ic
+        for field in fields:
+            key, value = field.split(":")
+            key = key.strip()
+            value = float(value.strip())
+            if key.upper() == "T":
+                self.T = value
+            elif key.upper() == "PH":
+                self.pH = value
+            elif key.upper() == "EH":
+                self.Eh = value
 
-                ms = Microstate(list(current_state), state_e, count)
-                microstates.append(ms)
+        fields = []
+        while len(fields) != 2:
+            line = f.readline()
+            line = line.split("#")[0]  #remove comment
+            fields = line.split(":")
+        if fields[0].strip() == "METHOD":
+            self.method = fields[1].strip()
+        else:
+            print("Expect line of METHOD record")
+            sys.exit()
 
-    return microstates, free_res, iconf2res
+        fields = []
+        while len(fields) != 2:
+            line = f.readline()
+            line = line.split("#")[0]  #remove comment
+            fields = line.split(":")
+        # This line is for fixed conformers,
+
+        # read MC microstates
+
+
+        f.close()
+
+
+
+            line = f.readline()
+            if line.find("#N_FREE residues:") == 0:
+                found_nres = True
+                continue
+            elif found_nres:
+                fields = line.split(":")
+                fields = fields[1].split(";")
+                for f in fields:
+                    if f.strip():
+                        confs = f.split()
+                        free_res.append([int(c) for c in confs])
+                for i_res in range(len(free_res)):
+                    for iconf in free_res[i_res]:
+                        iconf2res[iconf] = i_res
+                found_nres = False
+            elif line.find("MC:") == 0:   # ms starts
+                found_mc = True
+                newmc = True
+                continue
+            elif newmc:
+                f1, f2 = line.split(":")
+                current_state = [int(c) for c in f2.split()]
+                newmc = False
+                continue
+            elif found_mc:
+                fields = line.split(",")
+                if len(fields) >= 3:
+                    state_e = float(fields[0])
+                    count = int(fields[1])
+                    flipped = [int(c) for c in fields[2].split()]
+
+                    for ic in flipped:
+                        ir = iconf2res[ic]
+                        current_state[ir] = ic
+
+                    ms = Microstate(list(current_state), state_e, count)
+                    microstates.append(ms)
+
+        return microstates, free_res, iconf2res
 
 
 def readheadlst(fname):
