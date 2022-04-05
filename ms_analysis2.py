@@ -54,9 +54,8 @@ class MC:
         self.counts = 0
         self.E = 0.0
         self.conformers = []
-        self.ifixed_conformers = []
         self.residues = []
-        self.ifree_residues = []
+        self.ionizable_residues = []      # a list of conformer groups that make up ionizable residues
         self.ires_by_confname = {}
         self.ires_by_iconf = {}
         self.ires_by_resname = {}
@@ -70,6 +69,7 @@ class MC:
         f = open(fname)
 
         # read the header part
+        # mc condition
         fields = []
         n_lines = 0
         while len(fields) != 3 and n_lines < 10:
@@ -80,7 +80,6 @@ class MC:
         if n_lines >= 10:
             print("Expect MC condition line like \"T:298.15,pH:5.00,eH:0.00\" in the first 10 lines")
             sys.exit()
-
         for field in fields:
             key, value = field.split(":")
             key = key.strip()
@@ -92,6 +91,7 @@ class MC:
             elif key.upper() == "EH":
                 self.Eh = value
 
+        # method
         fields = []
         while len(fields) != 2:
             line = f.readline()
@@ -103,59 +103,72 @@ class MC:
             print("Expect line of METHOD record")
             sys.exit()
 
+        # fixed conformer, skip
         fields = []
         while len(fields) != 2:
             line = f.readline()
             line = line.split("#")[0]  #remove comment
             fields = line.split(":")
-        # This line is for fixed conformers,
+
+        # free residues
+        fields = []
+        while len(fields) != 2:
+            line = f.readline()
+            line = line.split("#")[0]  #remove comment
+            fields = line.split(":")
+        res_fields = fields[1].strip(" \n;").split(";")
+        for res_field in res_fields:
+            iconfs = [int(i) for i in res_field.split()]
+
+            print(iconfs)
+
 
         # read MC microstates
 
 
         f.close()
 
-
-
-            line = f.readline()
-            if line.find("#N_FREE residues:") == 0:
-                found_nres = True
-                continue
-            elif found_nres:
-                fields = line.split(":")
-                fields = fields[1].split(";")
-                for f in fields:
-                    if f.strip():
-                        confs = f.split()
-                        free_res.append([int(c) for c in confs])
-                for i_res in range(len(free_res)):
-                    for iconf in free_res[i_res]:
-                        iconf2res[iconf] = i_res
-                found_nres = False
-            elif line.find("MC:") == 0:   # ms starts
-                found_mc = True
-                newmc = True
-                continue
-            elif newmc:
-                f1, f2 = line.split(":")
-                current_state = [int(c) for c in f2.split()]
-                newmc = False
-                continue
-            elif found_mc:
-                fields = line.split(",")
-                if len(fields) >= 3:
-                    state_e = float(fields[0])
-                    count = int(fields[1])
-                    flipped = [int(c) for c in fields[2].split()]
-
-                    for ic in flipped:
-                        ir = iconf2res[ic]
-                        current_state[ir] = ic
-
-                    ms = Microstate(list(current_state), state_e, count)
-                    microstates.append(ms)
-
-        return microstates, free_res, iconf2res
+        #
+        #
+        #     line = f.readline()
+        #     if line.find("#N_FREE residues:") == 0:
+        #         found_nres = True
+        #         continue
+        #     elif found_nres:
+        #         fields = line.split(":")
+        #         fields = fields[1].split(";")
+        #         for f in fields:
+        #             if f.strip():
+        #                 confs = f.split()
+        #                 free_res.append([int(c) for c in confs])
+        #         for i_res in range(len(free_res)):
+        #             for iconf in free_res[i_res]:
+        #                 iconf2res[iconf] = i_res
+        #         found_nres = False
+        #     elif line.find("MC:") == 0:   # ms starts
+        #         found_mc = True
+        #         newmc = True
+        #         continue
+        #     elif newmc:
+        #         f1, f2 = line.split(":")
+        #         current_state = [int(c) for c in f2.split()]
+        #         newmc = False
+        #         continue
+        #     elif found_mc:
+        #         fields = line.split(",")
+        #         if len(fields) >= 3:
+        #             state_e = float(fields[0])
+        #             count = int(fields[1])
+        #             flipped = [int(c) for c in fields[2].split()]
+        #
+        #             for ic in flipped:
+        #                 ir = iconf2res[ic]
+        #                 current_state[ir] = ic
+        #
+        #             ms = Microstate(list(current_state), state_e, count)
+        #             microstates.append(ms)
+        #
+        # return microstates, free_res, iconf2res
 
 
 def readheadlst(fname):
@@ -366,19 +379,7 @@ def ms_counts_uniq(microstates, nbins = 100, erange = []):
     return erange, counts
 
 if __name__ == "__main__":
-    msfile = "4lzt/ms_out/pH4eH0ms.txt"
+    msfile = "4lzt/ms_out/pH5eH0ms.txt"
 
-    microstates, free_res, iconf2res = readms(msfile)
-    conformers = readheadlst("4lzt/head3.lst")
-
-    # microstate counts bins
-    e_range, counts = ms_counts_total(microstates, nbins=100)
-    e_range, uniq_counts = ms_counts_uniq(microstates, erange=e_range)
-
-    plt.figure(figsize=(12, 6))
-    plt.title("ms counts vs E")
-    ax = plt.gca()
-    ax.scatter(e_range, counts, color="b")
-    ax.scatter(e_range, uniq_counts, color="r")
-
-    plt.show()
+    mc = MC()
+    mc.readms(msfile)
