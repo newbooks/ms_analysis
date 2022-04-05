@@ -60,6 +60,14 @@ class MC:
         self.ires_by_iconf = {}
         self.ires_by_resname = {}
         self.microstates = []
+        lines = open("head3.lst").readlines()
+        for line in lines[1:]:
+            if len(line) > 80:
+                conf = Conformer()
+                conf.load(line)
+                self.conformers.append(conf)
+
+
 
     def readms(self, fname):
         found_nres = False
@@ -119,9 +127,14 @@ class MC:
         res_fields = fields[1].strip(" \n;").split(";")
         for res_field in res_fields:
             iconfs = [int(i) for i in res_field.split()]
-
-            print(iconfs)
-
+            charges = []
+            for iconf in iconfs:
+                charges.append(round(self.conformers[iconf].crg))
+            if len(set(charges)) > 1:     # more than one charge, ionizable
+                self.ionizable_residues.append(list(set(charges)))
+                for iconf in iconfs:
+                    self.ires_by_iconf[iconf] = len(self.ionizable_residues) - 1
+            print(self.ionizable_residues)
 
         # read MC microstates
 
@@ -253,57 +266,8 @@ def bhata_distance(prob1, prob2):
     return d
 
 
-def autolabel(rects, ax):
-    """Attach a text label above each bar in *rects*, displaying its height."""
-    for rect in rects:
-        height = rect.get_height()
-        ax.annotate('%.3f' % height,
-                    xy=(rect.get_x() + rect.get_width() / 2, height),
-                    xytext=(0, 3),  # 3 points vertical offset
-                    textcoords="offset points",
-                    ha='center', va='bottom')
 
 
-def plot_prob(p1, p2, d):
-    x = np.arange(len(p1))
-    width = 0.35
-
-
-    fig, ax = plt.subplots(figsize=(8, 5))
-    rects1 = ax.bar(x - width/2, p1, width, label="group1")
-    rects2 = ax.bar(x + width/2, p2, width, label="group2")
-    ax.set_ylabel("occ")
-    ax.set_title("d=%.3f" %d)
-    ax.legend()
-    autolabel(rects1, ax)
-    autolabel(rects2, ax)
-
-    plt.show()
-    return
-
-
-def average_e(microstates):
-    t = 0.0
-    c = 0
-    for ms in microstates:
-        t += ms.E * ms.counts
-        c += ms.counts
-    return t/c
-
-
-def e2occ(e):
-    "Energy (kcal/mol) to occupancy"
-    occ_g = 1.0
-    occ_x = math.exp(-e*Kcal2kT)
-    return occ_x/(occ_g+occ_x)
-
-
-def occ2e(occ):
-    if 1-occ < 0.0001:
-        nocc =0.0001
-
-    nocc = occ/(1.0-occ)  # normalized occ, assume ground state G = 0
-    return -math.log(nocc)/Kcal2kT
 
 
 def ms_counts_total(microstates, nbins = 100, erange = []):
@@ -379,7 +343,7 @@ def ms_counts_uniq(microstates, nbins = 100, erange = []):
     return erange, counts
 
 if __name__ == "__main__":
-    msfile = "4lzt/ms_out/pH5eH0ms.txt"
+    msfile = "ms_out/pH5eH0ms.txt"
 
     mc = MC()
     mc.readms(msfile)
