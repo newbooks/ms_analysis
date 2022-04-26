@@ -9,19 +9,28 @@ This library has been rewritten to minimize memory use. The microstates are acce
 
 ## Data structure and functions
 Microstate class:
-    Microstate.state     microstate, an encoded string to represent a list of selected conformers that define the microstate
-    Microstate.E:        microstate energy
-    Microstate.crg:      microstate net charge (of selected conformers)
-    Microstate.counts    counts of acceptance in MC
+    Microstate.state:   microstate, an encoded string to represent a list of selected conformers that define the microstate
+    Microstate.E:       microstate energy
+    Microstate.crg:     microstate net charge (of selected conformers)
+    Microstate.counts:  counts of acceptance in MC
 
-MC class:
-    MC.fixedconf         a list of fixed conformers  
+MC class:  # A monte Carlo run
+    MC.T:               Temperature
+    MC.pH:              pH
+    MC.Eh:              Eh
+    MC.fixedconf:       a list of fixed conformers
+    MC.microstates:     A dictionary that uses index numbers as keys and Microstate data structure as value.
+        {   index: Microstate, 
+            index: Microstate,
+            ...
+        }
 
-MC.microstates: A dictionary that uses index number as key and Microstate data structure as value.
-{index: Microstate, 
- index: Microstate,
- ...
-}
+Conformer class:    # conformer info as recorded in head3.lst
+    Conformer.iconf:    index, starting from 0
+    Conformer.confid:   conformer ID
+    Conformer.resid:    residue ID
+    Conformer.crg:      charge
+    Conformer.load():   read a head3.lst line to load conformer info
 
 
 
