@@ -18,11 +18,9 @@ Kcal2kT = 1.688
 
 class Microstate:
     def __init__(self, state, E, count):
-        self.state = ""   # selected conformers of a microstate
-        self.E = 0
-        self.crg = 0
-        self.count = 0
-
+        self.stateid = " ".join([str(x) for x in state])
+        self.E = E
+        self.count = count
 
 class Conformer:
     def __init__(self):
@@ -55,7 +53,7 @@ class MC:
         self.fixedconfs = []                # fixed conformers
         self.free_residues = []             # a list of conformer groups that make up free residues
         self.ires_by_iconf = {}             # index of free residue by index of conf
-        self.microstates = []
+        self.microstates = []               # a list of microstates
         lines = open("head3.lst").readlines()
         for line in lines[1:]:
             if len(line) > 80:
@@ -64,10 +62,6 @@ class MC:
                 self.conformers.append(conf)
 
     def readms(self, fname):
-        found_nres = False
-        found_mc = False
-        newmc = False
-
         f = open(fname)
 
         # read the header part
@@ -113,12 +107,68 @@ class MC:
             fields = line.split(":")
 
         # free residues
+        fields = []
+        while len(fields) != 2:
+            line = f.readline()
+            line = line.split("#")[0]  #remove comment
+            fields = line.split(":")
 
+        n_res = int(fields[0])
+        self.free_residues = [[int(xx) for xx in x.strip().split()] for x in fields[1].strip(" ;\n").split(";")]
+
+        if len(self.free_residues) != n_res:
+            print("The number of free residues don't match.")
+            print(line)
+            sys.exit()
+
+        for ires in range(len(self.free_residues)):
+            res = self.free_residues[ires]
+            for iconf in res:
+                self.ires_by_iconf[iconf] = ires
 
         # read MC microstates
+        newmc = False
+        found_mc = False
+        microstates_by_id = {}
+        while True:
+            line = f.readline()
+            if not line:
+                break
 
+            if line.find("MC:") == 0:   # found a MC start
+                newmc = True
+                found_mc = True
+                continue
+            elif newmc:
+                f1, f2 = line.split(":")
+                current_state = [int(c) for c in f2.split()]
+                newmc = False
+                continue
+            elif found_mc:
+                fields = line.split(",")
+                if len(fields) >= 3:
+                    state_e = float(fields[0])
+                    count = int(fields[1])
+                    flipped = [int(c) for c in fields[2].split()]
+
+                    for ic in flipped:
+                        ir = self.ires_by_iconf[ic]
+                        current_state[ir] = ic
+
+                    #print(flipped, current_state)
+                    ms = Microstate(current_state, state_e, count)
+                    if ms.stateid in microstates_by_id:
+                        microstates_by_id[ms.stateid].count += ms.count
+                    else:
+                        microstates_by_id[ms.stateid] = ms
 
         f.close()
+
+        # convert microstates to a list
+        self.microstates = [item[1] for item in microstates_by_id.items()]
+        microstates_by_id.clear()
+        print(len(self.microstates))
+
 
 
 def readheadlst(fname):
