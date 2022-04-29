@@ -2,6 +2,7 @@
 import math
 import matplotlib.pyplot as plt
 import numpy as np
+import tracemalloc
 
 ph2Kcal = 1.364
 Kcal2kT = 1.688
@@ -38,7 +39,7 @@ def readms(fname):
     iconf2res = {}         # A dictionary for looking up from conformer index to residue index
 
     lines = open(fname).readlines()
-
+    MC_Segments = ["0", "1", "2", "3", "4", "5"]
     found_nres = False
     found_mc = False
     newmc = False
@@ -292,3 +293,11 @@ def ms_counts_uniq(microstates, nbins = 100, erange = []):
         erange = [lowest_E + i*bin_size for i in range(nbins)]
 
     return erange, counts
+
+if __name__ == "__main__":
+    msfile = "ms_out/pH4eH0ms.txt"
+    tracemalloc.start()
+    microstates, free_res, iconf2res = readms(msfile)
+    conformers = readheadlst("head3.lst")
+    print("loaded ms", tracemalloc.get_traced_memory())
+    tracemalloc.start()

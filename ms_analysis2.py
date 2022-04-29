@@ -11,6 +11,7 @@
 import math
 import numpy as np
 import sys
+import tracemalloc
 
 ph2Kcal = 1.364
 Kcal2kT = 1.688
@@ -36,10 +37,6 @@ class Conformer:
         self.resid = self.confid[:3]+self.confid[5:11]
         self.crg = float(fields[4])
 
-class Residue:
-    def __init__(self):
-        self.resid = ""
-        self.conformers = []
 
 class MC:
     def __init__(self):
@@ -54,12 +51,14 @@ class MC:
         self.free_residues = []             # a list of conformer groups that make up free residues
         self.ires_by_iconf = {}             # index of free residue by index of conf
         self.microstates = []               # a list of microstates
+        self.microstates_by_id = {}
         lines = open("head3.lst").readlines()
         for line in lines[1:]:
             if len(line) > 80:
                 conf = Conformer()
                 conf.load(line)
                 self.conformers.append(conf)
+        self.allms = []
 
     def readms(self, fname):
         f = open(fname)
@@ -129,7 +128,7 @@ class MC:
         # read MC microstates
         newmc = False
         found_mc = False
-        microstates_by_id = {}
+        self.microstates_by_id.clear()
         while True:
             line = f.readline()
             if not line:
@@ -157,18 +156,16 @@ class MC:
 
                     #print(flipped, current_state)
                     ms = Microstate(current_state, state_e, count)
-                    if ms.stateid in microstates_by_id:
-                        microstates_by_id[ms.stateid].count += ms.count
+                    if ms.stateid in self.microstates_by_id:
+                        self.microstates_by_id[ms.stateid].count += ms.count
                     else:
-                        microstates_by_id[ms.stateid] = ms
+                        self.microstates_by_id[ms.stateid] = ms
 
         f.close()
 
         # convert microstates to a list
-        self.microstates = [item[1] for item in microstates_by_id.items()]
-        microstates_by_id.clear()
-        print(len(self.microstates))
-
+        self.microstates = [item[1] for item in self.microstates_by_id.items()]
+        self.allms = range(len(self.microstates))
 
 
 def readheadlst(fname):
@@ -186,6 +183,20 @@ def readheadlst(fname):
 
 if __name__ == "__main__":
     msfile = "ms_out/pH5eH0ms.txt"
-
+    tracemalloc.start()
     mc = MC()
-    mc.readms("ms_out/pH4eH0ms.txt")
+    mc.readms(msfile)
+    print("Loaded ms", tracemalloc.get_traced_memory())
+
+    ms_odd = []
+    ms_even = []
+    for i in range(len(mc.microstates)):
+        if i % 2:
+            ms_even.append(mc.microstates[i])
+        else:
+            ms_odd.append(mc.microstates[i])
+
+    print("divide ms", tracemalloc.get_traced_memory())
+
+    tracemalloc.stop()
+    print(len(ms_odd), len(ms_even))
