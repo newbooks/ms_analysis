@@ -196,12 +196,67 @@ def get_erange(microstates):
     "return energy range of the microstates"
     emin = microstates[0].E
     emax = microstates[0].E
-    for ms in microstates:
+    for ms in microstates[1:]:
         if emin > ms.E:
             emin = ms.E
         if emax < ms.E:
             emax = ms.E
     return emin, emax
+
+
+def bin_mscounts_total(microstates, nbins=100, erange=[]):
+    "Return two lists, one as energy range and one as counts of total counts."
+    if erange:   # use the range if range arrary is provided
+        erange.sort()
+        counts = [0 for _ in erange]
+        for ms in microstates:
+            ibin = -1
+            for ie in range(len(erange)-1, -1, -1):
+                if ms.E > erange[ie]:
+                    ibin = ie
+                    break
+            if ibin >= 0:
+                counts[ibin] += ms.count
+    else:
+        lowest_E, highest_E = get_erange(microstates)
+
+        E_range = highest_E - lowest_E + 0.01
+        bin_size = E_range / nbins
+        counts = [0 for _ in range(nbins)]
+        for ms in microstates:
+            ibin = int((ms.E - lowest_E) / bin_size)
+            counts[ibin] += ms.count
+        erange = [lowest_E + i*bin_size for i in range(nbins)]
+
+    return erange, counts
+
+def bin_mscounts_unique(microstates, nbins=100, erange=[]):
+    "Return two lists, one as energy range and one as counts of to counts."
+
+    if erange:   # use the range if range arrary is provided
+        erange.sort()
+        counts = [0 for _ in erange]
+        for ms in microstates:
+            ibin = -1
+            for ie in range(len(erange)-1, -1, -1):
+                if ms.E > erange[ie]:
+                    ibin = ie
+                    break
+            if ibin >= 0:
+                counts[ibin] += 1
+    else:
+        lowest_E, highest_E = get_erange(microstates)
+
+        E_range = highest_E - lowest_E + 0.01
+        bin_size = E_range / nbins
+        counts = [0 for _ in range(nbins)]
+        for ms in microstates:
+            ibin = int((ms.E - lowest_E) / bin_size)
+            counts[ibin] += 1
+        erange = [lowest_E + i*bin_size for i in range(nbins)]
+
+    return erange, counts
+
 
 def select_by_conformer(mc, microstates, conformer_in = []):
     "Select microstate if confomer is in the list AND energy is in the range. Return all if the list is empty."
@@ -221,12 +276,40 @@ def select_by_conformer(mc, microstates, conformer_in = []):
 
     return selected, unselected
 
+
+def select_by_energy(mc, microstates, energy_in = []):
+    "Select microstate if energy is in the list AND energy is in the range. Return all if the list is empty."
+    selected = []
+    unselected = []
+    if energy_in:
+        energy_in.sort()
+    else:
+        return [], microstates
+
+    for ms in microstates:
+        if energy_in[0] <= ms.E < energy_in[1]:
+            selected.append(ms)
+        else:
+            unselected.append(ms)
+
+    return selected, unselected
+
+
 def get_count(microstates):
     "Calculate the microstate count"
     count = 0
     for ms in microstates:
         count += ms.count
     return count
+
+
+def average_e(microstates):
+    t = 0.0
+    c = 0
+    for ms in microstates:
+        t += ms.E * ms.counts
+        c += ms.counts
+    return t/c
 
 if __name__ == "__main__":
     msfile = "ms_out/pH5eH0ms.txt"
@@ -235,12 +318,3 @@ if __name__ == "__main__":
     mc.readms(msfile)
     #print("Loaded ms", tracemalloc.get_traced_memory())
     #tracemalloc.stop()
-    emin, emax = get_erange(mc.microstates)
-    print(emin, emax)
-    charged = ["GLU-1A0035_011", "GLU-1A0035_012", "GLU-1A0035_013", "GLU-1A0035_014"]
-    glu_charged, glu_netural = select_by_conformer(mc, mc.microstates, conformer_in=charged)
-    print(len(glu_charged), len(glu_netural))
-    n_netural = get_count(glu_netural)
-    n_charged = get_count(glu_charged)
-    ionization = n_charged/(n_charged+n_netural)
-    print(ionization)
