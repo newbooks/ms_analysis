@@ -12,6 +12,7 @@ import math
 import numpy as np
 import sys
 import tracemalloc
+import zlib
 
 ph2Kcal = 1.364
 Kcal2kT = 1.688
@@ -19,9 +20,12 @@ Kcal2kT = 1.688
 
 class Microstate:
     def __init__(self, state, E, count):
-        self.stateid = " ".join([str(x) for x in state])
+        self.stateid = zlib.compress(" ".join([str(x) for x in state]).encode())
         self.E = E
         self.count = count
+
+    def state(self):
+        return [int(i) for i in zlib.decompress(self.stateid).decode().split()]
 
 class Conformer:
     def __init__(self):
@@ -37,6 +41,18 @@ class Conformer:
         self.resid = self.confid[:3]+self.confid[5:11]
         self.crg = float(fields[4])
 
+def readheadlst(fname):
+    conformers = []
+    lines = open(fname).readlines()
+
+    for line in lines[1:]:
+        if len(line) > 80:
+            conf = Conformer()
+            conf.load(line)
+            conformers.append(conf)
+
+    return conformers
+
 
 class MC:
     def __init__(self):
@@ -47,18 +63,21 @@ class MC:
         self.counts = 0
         self.E = 0.0
         self.conformers = []
+        self.iconf_by_confname = {}
         self.fixedconfs = []                # fixed conformers
         self.free_residues = []             # a list of conformer groups that make up free residues
         self.ires_by_iconf = {}             # index of free residue by index of conf
         self.microstates = []               # a list of microstates
         self.microstates_by_id = {}
         lines = open("head3.lst").readlines()
+        iconf = 0
         for line in lines[1:]:
             if len(line) > 80:
                 conf = Conformer()
                 conf.load(line)
                 self.conformers.append(conf)
-        self.allms = []
+                self.iconf_by_confname[conf.confid] = iconf
+                iconf += 1
 
     def readms(self, fname):
         f = open(fname)
@@ -167,36 +186,61 @@ class MC:
         self.microstates = [item[1] for item in self.microstates_by_id.items()]
         self.allms = range(len(self.microstates))
 
+def get_occ(microstates):   # given a list of ms, return a list of occ
+    total_counts = 0.0
+    for ms in microstates:
+        total_counts += ms.count
+    return [ms.count/total_counts for ms in microstates]
 
-def readheadlst(fname):
-    conformers = []
-    lines = open(fname).readlines()
+def get_erange(microstates):
+    "return energy range of the microstates"
+    emin = microstates[0].E
+    emax = microstates[0].E
+    for ms in microstates:
+        if emin > ms.E:
+            emin = ms.E
+        if emax < ms.E:
+            emax = ms.E
+    return emin, emax
 
-    for line in lines[1:]:
-        if len(line) > 80:
-            conf = Conformer()
-            conf.load(line)
-            conformers.append(conf)
+def select_by_conformer(mc, microstates, conformer_in = []):
+    "Select microstate if confomer is in the list AND energy is in the range. Return all if the list is empty."
+    selected = []
+    unselected = []
+    if conformer_in:
+        iconf_in = set([mc.iconf_by_confname[confid] for confid in conformer_in])
+    else:
+        return [], microstates
 
-    return conformers
+    for ms in microstates:
+        state = set(ms.state())
+        if state & iconf_in:
+            selected.append(ms)
+        else:
+            unselected.append(ms)
 
+    return selected, unselected
+
+def get_count(microstates):
+    "Calculate the microstate count"
+    count = 0
+    for ms in microstates:
+        count += ms.count
+    return count
 
 if __name__ == "__main__":
     msfile = "ms_out/pH5eH0ms.txt"
-    tracemalloc.start()
+    #tracemalloc.start()
     mc = MC()
     mc.readms(msfile)
-    print("Loaded ms", tracemalloc.get_traced_memory())
-
-    ms_odd = []
-    ms_even = []
-    for i in range(len(mc.microstates)):
-        if i % 2:
-            ms_even.append(mc.microstates[i])
-        else:
-            ms_odd.append(mc.microstates[i])
-
-    print("divide ms", tracemalloc.get_traced_memory())
-
-    tracemalloc.stop()
-    print(len(ms_odd), len(ms_even))
+    #print("Loaded ms", tracemalloc.get_traced_memory())
+    #tracemalloc.stop()
+    emin, emax = get_erange(mc.microstates)
+    print(emin, emax)
+    charged = ["GLU-1A0035_011", "GLU-1A0035_012", "GLU-1A0035_013", "GLU-1A0035_014"]
+    glu_charged, glu_netural = select_by_conformer(mc, mc.microstates, conformer_in=charged)
+    print(len(glu_charged), len(glu_netural))
+    n_netural = get_count(glu_netural)
+    n_charged = get_count(glu_charged)
+    ionization = n_charged/(n_charged+n_netural)
+    print(ionization)

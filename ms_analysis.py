@@ -14,7 +14,6 @@ class Microstate:
         self.E = E
         self.count = count
 
-
 class Conformer:
     def __init__(self):
         self.iconf = 0
