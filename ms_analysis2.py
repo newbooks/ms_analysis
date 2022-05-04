@@ -63,7 +63,6 @@ class MC:
         self.counts = 0
         self.E = 0.0
         self.conformers = []
-        self.occ = []
         self.iconf_by_confname = {}
         self.fixedconfs = []                # fixed conformers
         self.free_residues = []             # a list of conformer groups that make up free residues
@@ -187,19 +186,53 @@ class MC:
         # convert microstates to a list
         self.microstates = [item[1] for item in self.microstates_by_id.items()]
 
-    def get_occ(self):
-        self.occ = [0 for _ in range(len(self.conformers))]
-        for ms in self.microstates:
+    def get_occ(self, microstates):
+        conf_occ = [0 for _ in range(len(self.conformers))]
+        total_counts = 0
+        for ms in microstates:
+            total_counts += ms.count
             for iconf in ms.state():
-                self.occ[iconf] += ms.count
-        for iconf in range(len(self.occ)):
-            self.occ[iconf] = self.occ[iconf]/self.counts
+                conf_occ[iconf] += ms.count
+        for ic in range(len(conf_occ)):
+            conf_occ[ic] = conf_occ[ic]/total_counts
 
-def get_occ(microstates):   # given a list of ms, return a list of occ
-    total_counts = 0.0
-    for ms in microstates:
-        total_counts += ms.count
-    return [ms.count/total_counts for ms in microstates]
+        return conf_occ
+
+    def select_by_conformer(self, microstates, conformer_in=[]):
+        "Select microstate if confomer is in the list AND energy is in the range. Return all if the list is empty."
+        selected = []
+        unselected = []
+        if conformer_in:
+            iconf_in = set([self.iconf_by_confname[confid] for confid in conformer_in])
+        else:
+            return [], microstates
+
+        for ms in microstates:
+            state = set(ms.state())
+            if state & iconf_in:
+                selected.append(ms)
+            else:
+                unselected.append(ms)
+
+        return selected, unselected
+
+    def select_by_energy(self, microstates, energy_in=[]):
+        "Select microstate if energy is in the list AND energy is in the range. Return all if the list is empty."
+        selected = []
+        unselected = []
+        if energy_in:
+            energy_in.sort()
+        else:
+            return [], microstates
+
+        for ms in microstates:
+            if energy_in[0] <= ms.E < energy_in[1]:
+                selected.append(ms)
+            else:
+                unselected.append(ms)
+
+        return selected, unselected
+
 
 def get_erange(microstates):
     "return energy range of the microstates"
@@ -267,43 +300,6 @@ def bin_mscounts_unique(microstates, nbins=100, erange=[]):
     return erange, counts
 
 
-def select_by_conformer(mc, microstates, conformer_in = []):
-    "Select microstate if confomer is in the list AND energy is in the range. Return all if the list is empty."
-    selected = []
-    unselected = []
-    if conformer_in:
-        iconf_in = set([mc.iconf_by_confname[confid] for confid in conformer_in])
-    else:
-        return [], microstates
-
-    for ms in microstates:
-        state = set(ms.state())
-        if state & iconf_in:
-            selected.append(ms)
-        else:
-            unselected.append(ms)
-
-    return selected, unselected
-
-
-def select_by_energy(mc, microstates, energy_in = []):
-    "Select microstate if energy is in the list AND energy is in the range. Return all if the list is empty."
-    selected = []
-    unselected = []
-    if energy_in:
-        energy_in.sort()
-    else:
-        return [], microstates
-
-    for ms in microstates:
-        if energy_in[0] <= ms.E < energy_in[1]:
-            selected.append(ms)
-        else:
-            unselected.append(ms)
-
-    return selected, unselected
-
-
 def get_count(microstates):
     "Calculate the microstate count"
     count = 0
@@ -320,14 +316,43 @@ def average_e(microstates):
         c += ms.counts
     return t/c
 
+def bhata_distance(prob1, prob2):
+    if len(prob1) != len(prob2):
+        d = 1.0e10  # Max possible value set to this
+    else:
+        t = 0.0
+        for i in range(len(prob1)):
+            t += math.sqrt(prob1[i]*prob2[i])
+        bc = t
+        if bc < math.exp(-100):
+            d = 100.0
+        else:
+            d = -math.log(bc)
+
+    return d
+
 if __name__ == "__main__":
     msfile = "ms_out/pH5eH0ms.txt"
     #tracemalloc.start()
     mc = MC()
     mc.readms(msfile)
     #print("Loaded ms", tracemalloc.get_traced_memory())
-    mc.get_occ()
-    #print("occ calculated ms", tracemalloc.get_traced_memory())
-    for iconf in range(len(mc.conformers)):
-        print("%5d %s %8.3f" % (iconf, mc.conformers[iconf].confid, mc.occ[iconf]))
+
     #tracemalloc.stop()
+
+    # Example 1: When GLU35 is ionized, what residues change conformation?
+    glu_charged_confs = ["GLU-1A0035_011", "GLU-1A0035_012", "GLU-1A0035_013", "GLU-1A0035_011"]
+    glu_charged_ms, glu_neutral_ms = mc.select_by_conformer(mc.microstates, conformer_in=glu_charged_confs)
+    conf_occ_glu_charged = mc.get_occ(glu_charged_ms)
+    conf_occ_glu_neutral = mc.get_occ(glu_neutral_ms)
+    for res in mc.free_residues:
+        resid = mc.conformers[res[0]].resid
+        prob1 = [conf_occ_glu_neutral[ic] for ic in res]
+        prob2 = [conf_occ_glu_charged[ic] for ic in res]
+        d = bhata_distance(prob1, prob2)
+        print("%s, d= %.3f" % (resid, d))
+        for ic in res:
+            print("%s %6.3f %6.3f" % (mc.conformers[ic].confid, conf_occ_glu_neutral[ic], conf_occ_glu_charged[ic]))
+        print()
+
+    # Example 2: Which charge microstate is the most dominant?
