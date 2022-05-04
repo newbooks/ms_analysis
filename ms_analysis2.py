@@ -63,6 +63,7 @@ class MC:
         self.counts = 0
         self.E = 0.0
         self.conformers = []
+        self.occ = []
         self.iconf_by_confname = {}
         self.fixedconfs = []                # fixed conformers
         self.free_residues = []             # a list of conformer groups that make up free residues
@@ -179,12 +180,20 @@ class MC:
                         self.microstates_by_id[ms.stateid].count += ms.count
                     else:
                         self.microstates_by_id[ms.stateid] = ms
+                    self.counts += ms.count
 
         f.close()
 
         # convert microstates to a list
         self.microstates = [item[1] for item in self.microstates_by_id.items()]
-        self.allms = range(len(self.microstates))
+
+    def get_occ(self):
+        self.occ = [0 for _ in range(len(self.conformers))]
+        for ms in self.microstates:
+            for iconf in ms.state():
+                self.occ[iconf] += ms.count
+        for iconf in range(len(self.occ)):
+            self.occ[iconf] = self.occ[iconf]/self.counts
 
 def get_occ(microstates):   # given a list of ms, return a list of occ
     total_counts = 0.0
@@ -317,4 +326,8 @@ if __name__ == "__main__":
     mc = MC()
     mc.readms(msfile)
     #print("Loaded ms", tracemalloc.get_traced_memory())
+    mc.get_occ()
+    #print("occ calculated ms", tracemalloc.get_traced_memory())
+    for iconf in range(len(mc.conformers)):
+        print("%5d %s %8.3f" % (iconf, mc.conformers[iconf].confid, mc.occ[iconf]))
     #tracemalloc.stop()
