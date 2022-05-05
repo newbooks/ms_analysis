@@ -340,6 +340,12 @@ if __name__ == "__main__":
 
     #tracemalloc.stop()
 
+    # Example 1: Bin microstates based on energy
+    erange, total_counts = bin_mscounts_total(mc.microstates)
+    erange, uniq_counts = bin_mscounts_unique(mc.microstates)
+    for i in range(len(erange)):
+        print("%8.3f %6d %6d" % (erange[i], total_counts[i], uniq_counts[i]))
+
     # Example 1: When GLU35 is ionized, what residues change conformation?
     glu_charged_confs = ["GLU-1A0035_011", "GLU-1A0035_012", "GLU-1A0035_013", "GLU-1A0035_011"]
     glu_charged_ms, glu_neutral_ms = mc.select_by_conformer(mc.microstates, conformer_in=glu_charged_confs)
