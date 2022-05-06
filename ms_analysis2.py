@@ -81,6 +81,7 @@ class MC:
         self.iconf_by_confname = {}
         self.fixedconfs = []                # fixed conformers
         self.free_residues = []             # a list of conformer groups that make up free residues
+        self.free_residue_names = []        # free residue names
         self.ires_by_iconf = {}             # index of free residue by index of conf
         self.microstates = []               # a list of microstates
         self.microstates_by_id = {}
@@ -148,6 +149,7 @@ class MC:
 
         n_res = int(fields[0])
         self.free_residues = [[int(xx) for xx in x.strip().split()] for x in fields[1].strip(" ;\n").split(";")]
+        self.free_residue_names = [x[0] for x in self.free_residues]
 
         if len(self.free_residues) != n_res:
             print("The number of free residues don't match.")
@@ -398,6 +400,7 @@ if __name__ == "__main__":
 
     # Example 3: Which charge microstate is the most dominant?
     charge_microstates = mc.convert_to_charge_ms()
+    charge_microstates.sort(key=lambda x: x.count)
     count = 0
     for crg_ms in charge_microstates:
         count += crg_ms.count
