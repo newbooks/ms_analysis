@@ -41,6 +41,21 @@ class Conformer:
         self.resid = self.confid[:3]+self.confid[5:11]
         self.crg = float(fields[4])
 
+class Free_Res:
+    def __init__(self):
+        self.resid = ""
+        self.charges = []     # a list of charge choice
+
+class Charge_Microstate:
+    def __init__(self, crg_stateid, total_E, count):
+        self.crg_stateid = crg_stateid
+        self.average_E = 0
+        self.total_E = total_E
+        self.count = count
+
+    def state(self):
+        return [int(i) for i in zlib.decompress(self.crg_stateid).decode().split()]
+
 def readheadlst(fname):
     conformers = []
     lines = open(fname).readlines()
@@ -233,6 +248,24 @@ class MC:
 
         return selected, unselected
 
+    def convert_to_charge_ms(self):
+        charge_microstates = []
+        charge_ms_by_id = {}   #
+        for ms in self.microstates:
+            current_crg_state = [round(self.conformers[ic].crg) for ic in ms.state()]
+            crg_stateid = zlib.compress(" ".join([str(x) for x in current_crg_state]).encode())
+            crg_ms = Charge_Microstate(crg_stateid, ms.E*ms.count, ms.count)
+            if crg_stateid in charge_ms_by_id:
+                charge_ms_by_id[crg_stateid].count += crg_ms.count
+                charge_ms_by_id[crg_stateid].total_E += crg_ms.total_E
+            else:
+                charge_ms_by_id[crg_stateid] = crg_ms
+        for crg_stateid in charge_ms_by_id.keys():
+            crg_ms = charge_ms_by_id[crg_stateid]
+            crg_ms.average_E = crg_ms.total_E / crg_ms.count
+            charge_microstates.append(crg_ms)
+        del(charge_ms_by_id)
+        return charge_microstates
 
 def get_erange(microstates):
     "return energy range of the microstates"
@@ -338,27 +371,40 @@ if __name__ == "__main__":
     mc.readms(msfile)
     #print("Loaded ms", tracemalloc.get_traced_memory())
 
+
+    # # Example 1: Bin microstates based on energy
+    # erange, total_counts = bin_mscounts_total(mc.microstates)
+    # erange, uniq_counts = bin_mscounts_unique(mc.microstates)
+    # for i in range(len(erange)):
+    #     print("%8.3f %6d %6d" % (erange[i], total_counts[i], uniq_counts[i]))
+    # #print("bin ms", tracemalloc.get_traced_memory())
+    #
+    #
+    # # Example 2: When GLU35 is ionized, what residues change conformation?
+    # glu_charged_confs = ["GLU-1A0035_011", "GLU-1A0035_012", "GLU-1A0035_013", "GLU-1A0035_011"]
+    # glu_charged_ms, glu_neutral_ms = mc.select_by_conformer(mc.microstates, conformer_in=glu_charged_confs)
+    # conf_occ_glu_charged = mc.get_occ(glu_charged_ms)
+    # conf_occ_glu_neutral = mc.get_occ(glu_neutral_ms)
+    # for res in mc.free_residues:
+    #     resid = mc.conformers[res[0]].resid
+    #     prob1 = [conf_occ_glu_neutral[ic] for ic in res]
+    #     prob2 = [conf_occ_glu_charged[ic] for ic in res]
+    #     d = bhata_distance(prob1, prob2)
+    #     print("%s, d= %.3f" % (resid, d))
+    #     for ic in res:
+    #         print("%s %6.3f %6.3f" % (mc.conformers[ic].confid, conf_occ_glu_neutral[ic], conf_occ_glu_charged[ic]))
+    #     print()
+    # #print("Grouping ms", tracemalloc.get_traced_memory())
+
+    # Example 3: Which charge microstate is the most dominant?
+    charge_microstates = mc.convert_to_charge_ms()
+    count = 0
+    for crg_ms in charge_microstates:
+        count += crg_ms.count
+        print(crg_ms.state(), crg_ms.count, crg_ms.average_E)
+    print("%d charge microstates" % len(charge_microstates))
+    print("%d total microstates" % count)
+    #print("charge microstates", tracemalloc.get_traced_memory())
+
+
     #tracemalloc.stop()
-
-    # Example 1: Bin microstates based on energy
-    erange, total_counts = bin_mscounts_total(mc.microstates)
-    erange, uniq_counts = bin_mscounts_unique(mc.microstates)
-    for i in range(len(erange)):
-        print("%8.3f %6d %6d" % (erange[i], total_counts[i], uniq_counts[i]))
-
-    # Example 1: When GLU35 is ionized, what residues change conformation?
-    glu_charged_confs = ["GLU-1A0035_011", "GLU-1A0035_012", "GLU-1A0035_013", "GLU-1A0035_011"]
-    glu_charged_ms, glu_neutral_ms = mc.select_by_conformer(mc.microstates, conformer_in=glu_charged_confs)
-    conf_occ_glu_charged = mc.get_occ(glu_charged_ms)
-    conf_occ_glu_neutral = mc.get_occ(glu_neutral_ms)
-    for res in mc.free_residues:
-        resid = mc.conformers[res[0]].resid
-        prob1 = [conf_occ_glu_neutral[ic] for ic in res]
-        prob2 = [conf_occ_glu_charged[ic] for ic in res]
-        d = bhata_distance(prob1, prob2)
-        print("%s, d= %.3f" % (resid, d))
-        for ic in res:
-            print("%s %6.3f %6.3f" % (mc.conformers[ic].confid, conf_occ_glu_neutral[ic], conf_occ_glu_charged[ic]))
-        print()
-
-    # Example 2: Which charge microstate is the most dominant?
