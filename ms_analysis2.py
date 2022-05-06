@@ -368,35 +368,35 @@ def bhata_distance(prob1, prob2):
 
 if __name__ == "__main__":
     msfile = "ms_out/pH5eH0ms.txt"
-    #tracemalloc.start()
+    tracemalloc.start()
     mc = MC()
     mc.readms(msfile)
-    #print("Loaded ms", tracemalloc.get_traced_memory())
+    print("Loaded ms", tracemalloc.get_traced_memory())
 
 
-    # # Example 1: Bin microstates based on energy
-    # erange, total_counts = bin_mscounts_total(mc.microstates)
-    # erange, uniq_counts = bin_mscounts_unique(mc.microstates)
-    # for i in range(len(erange)):
-    #     print("%8.3f %6d %6d" % (erange[i], total_counts[i], uniq_counts[i]))
-    # #print("bin ms", tracemalloc.get_traced_memory())
-    #
-    #
-    # # Example 2: When GLU35 is ionized, what residues change conformation?
-    # glu_charged_confs = ["GLU-1A0035_011", "GLU-1A0035_012", "GLU-1A0035_013", "GLU-1A0035_011"]
-    # glu_charged_ms, glu_neutral_ms = mc.select_by_conformer(mc.microstates, conformer_in=glu_charged_confs)
-    # conf_occ_glu_charged = mc.get_occ(glu_charged_ms)
-    # conf_occ_glu_neutral = mc.get_occ(glu_neutral_ms)
-    # for res in mc.free_residues:
-    #     resid = mc.conformers[res[0]].resid
-    #     prob1 = [conf_occ_glu_neutral[ic] for ic in res]
-    #     prob2 = [conf_occ_glu_charged[ic] for ic in res]
-    #     d = bhata_distance(prob1, prob2)
-    #     print("%s, d= %.3f" % (resid, d))
-    #     for ic in res:
-    #         print("%s %6.3f %6.3f" % (mc.conformers[ic].confid, conf_occ_glu_neutral[ic], conf_occ_glu_charged[ic]))
-    #     print()
-    # #print("Grouping ms", tracemalloc.get_traced_memory())
+    # Example 1: Bin microstates based on energy
+    erange, total_counts = bin_mscounts_total(mc.microstates)
+    erange, uniq_counts = bin_mscounts_unique(mc.microstates)
+    for i in range(len(erange)):
+        print("%8.3f %6d %6d" % (erange[i], total_counts[i], uniq_counts[i]))
+    print("bin ms", tracemalloc.get_traced_memory())
+
+
+    # Example 2: When GLU35 is ionized, what residues change conformation?
+    glu_charged_confs = ["GLU-1A0035_011", "GLU-1A0035_012", "GLU-1A0035_013", "GLU-1A0035_011"]
+    glu_charged_ms, glu_neutral_ms = mc.select_by_conformer(mc.microstates, conformer_in=glu_charged_confs)
+    conf_occ_glu_charged = mc.get_occ(glu_charged_ms)
+    conf_occ_glu_neutral = mc.get_occ(glu_neutral_ms)
+    for res in mc.free_residues:
+        resid = mc.conformers[res[0]].resid
+        prob1 = [conf_occ_glu_neutral[ic] for ic in res]
+        prob2 = [conf_occ_glu_charged[ic] for ic in res]
+        d = bhata_distance(prob1, prob2)
+        print("%s, d= %.3f" % (resid, d))
+        for ic in res:
+            print("%s %6.3f %6.3f" % (mc.conformers[ic].confid, conf_occ_glu_neutral[ic], conf_occ_glu_charged[ic]))
+        print()
+    print("Grouping ms", tracemalloc.get_traced_memory())
 
     # Example 3: Which charge microstate is the most dominant?
     charge_microstates = mc.convert_to_charge_ms()
@@ -407,7 +407,8 @@ if __name__ == "__main__":
         print(crg_ms.state(), crg_ms.count, crg_ms.average_E)
     print("%d charge microstates" % len(charge_microstates))
     print("%d total microstates" % count)
-    #print("charge microstates", tracemalloc.get_traced_memory())
+
+    print("charge microstates", tracemalloc.get_traced_memory())
 
 
-    #tracemalloc.stop()
+    tracemalloc.stop()
