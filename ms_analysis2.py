@@ -146,6 +146,8 @@ class MC:
             line = f.readline()
             line = line.split("#")[0]  #remove comment
             fields = line.split(":")
+        self.fixedconfs = [int(x) for x in fields[1].strip(" \n").split()]
+
 
         # free residues
         fields = []
@@ -156,7 +158,7 @@ class MC:
 
         n_res = int(fields[0])
         self.free_residues = [[int(xx) for xx in x.strip().split()] for x in fields[1].strip(" ;\n").split(";")]
-        self.free_residue_names = [x[0] for x in self.free_residues]
+        self.free_residue_names = [self.conformers[x[0]].resid for x in self.free_residues]
 
         if len(self.free_residues) != n_res:
             print("The number of free residues don't match.")
@@ -359,8 +361,8 @@ def average_e(microstates):
     t = 0.0
     c = 0
     for ms in microstates:
-        t += ms.E * ms.counts
-        c += ms.counts
+        t += ms.E * ms.count
+        c += ms.count
     return t/c
 
 def bhata_distance(prob1, prob2):
