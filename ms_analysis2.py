@@ -27,6 +27,7 @@ class Microstate:
     def state(self):
         return [int(i) for i in zlib.decompress(self.stateid).decode().split()]
 
+
 class Conformer:
     def __init__(self):
         self.iconf = 0
@@ -40,6 +41,7 @@ class Conformer:
         self.confid = fields[1]
         self.resid = self.confid[:3]+self.confid[5:11]
         self.crg = float(fields[4])
+
 
 class Free_Res:
     def __init__(self):
@@ -95,13 +97,18 @@ class MC:
                 self.iconf_by_confname[conf.confid] = iconf
                 iconf += 1
 
-    def readms(self, fname):
+    def readms(self, fname, MC=[]):
         f = open(fname)
 
         # read the header part
         # mc condition
         fields = []
         n_lines = 0
+        if MC:
+            MC_Segments = MC
+        else:
+            MC_Segments = [0, 1, 2, 3, 4, 5]
+
         while len(fields) != 3 and n_lines < 10:
             line = f.readline()
             line = line.split("#")[0]  #remove comment
@@ -171,8 +178,12 @@ class MC:
                 break
 
             if line.find("MC:") == 0:   # found a MC start
+                fields = line.split(":")
                 newmc = True
                 found_mc = True
+                which_mc = int(fields[1].strip())
+                if which_mc in MC_Segments:
+                    print("Reading %s" % line.strip())
                 continue
             elif newmc:
                 f1, f2 = line.split(":")
@@ -180,23 +191,24 @@ class MC:
                 newmc = False
                 continue
             elif found_mc:
-                fields = line.split(",")
-                if len(fields) >= 3:
-                    state_e = float(fields[0])
-                    count = int(fields[1])
-                    flipped = [int(c) for c in fields[2].split()]
+                if which_mc in MC_Segments:
+                    fields = line.split(",")
+                    if len(fields) >= 3:
+                        state_e = float(fields[0])
+                        count = int(fields[1])
+                        flipped = [int(c) for c in fields[2].split()]
 
-                    for ic in flipped:
-                        ir = self.ires_by_iconf[ic]
-                        current_state[ir] = ic
+                        for ic in flipped:
+                            ir = self.ires_by_iconf[ic]
+                            current_state[ir] = ic
 
-                    #print(flipped, current_state)
-                    ms = Microstate(current_state, state_e, count)
-                    if ms.stateid in self.microstates_by_id:
-                        self.microstates_by_id[ms.stateid].count += ms.count
-                    else:
-                        self.microstates_by_id[ms.stateid] = ms
-                    self.counts += ms.count
+                        #print(flipped, current_state)
+                        ms = Microstate(current_state, state_e, count)
+                        if ms.stateid in self.microstates_by_id:
+                            self.microstates_by_id[ms.stateid].count += ms.count
+                        else:
+                            self.microstates_by_id[ms.stateid] = ms
+                        self.counts += ms.count
 
         f.close()
 
@@ -368,18 +380,18 @@ def bhata_distance(prob1, prob2):
 
 if __name__ == "__main__":
     msfile = "ms_out/pH5eH0ms.txt"
-    tracemalloc.start()
+    #tracemalloc.start()
     mc = MC()
     mc.readms(msfile)
-    print("Loaded ms", tracemalloc.get_traced_memory())
+    #print("Loaded ms", tracemalloc.get_traced_memory())
 
 
     # Example 1: Bin microstates based on energy
     erange, total_counts = bin_mscounts_total(mc.microstates)
-    erange, uniq_counts = bin_mscounts_unique(mc.microstates)
+    _, uniq_counts = bin_mscounts_unique(mc.microstates)
     for i in range(len(erange)):
         print("%8.3f %6d %6d" % (erange[i], total_counts[i], uniq_counts[i]))
-    print("bin ms", tracemalloc.get_traced_memory())
+    #print("bin ms", tracemalloc.get_traced_memory())
 
 
     # Example 2: When GLU35 is ionized, what residues change conformation?
@@ -396,7 +408,7 @@ if __name__ == "__main__":
         for ic in res:
             print("%s %6.3f %6.3f" % (mc.conformers[ic].confid, conf_occ_glu_neutral[ic], conf_occ_glu_charged[ic]))
         print()
-    print("Grouping ms", tracemalloc.get_traced_memory())
+    #print("Grouping ms", tracemalloc.get_traced_memory())
 
     # Example 3: Which charge microstate is the most dominant?
     charge_microstates = mc.convert_to_charge_ms()
@@ -408,7 +420,7 @@ if __name__ == "__main__":
     print("%d charge microstates" % len(charge_microstates))
     print("%d total microstates" % count)
 
-    print("charge microstates", tracemalloc.get_traced_memory())
+    #print("charge microstates", tracemalloc.get_traced_memory())
 
 
-    tracemalloc.stop()
+    #tracemalloc.stop()
